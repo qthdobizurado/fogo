@@ -1,0 +1,30 @@
+{
+  "name": "Queimadas Goiás - Mapa Operacional",
+  "short_name": "Queimadas GO",
+  "description": "Mapa operacional de focos de calor, cerco automático, cerco manual, bases, GPS e uso offline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#07101f",
+  "theme_color": "#07101f",
+  "lang": "pt-BR",
+  "categories": [
+    "maps",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

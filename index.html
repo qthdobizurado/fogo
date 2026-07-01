@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="app-build" content="1782947137" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Focos de Calor em Goiás</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+
+
+
+  <link rel="stylesheet" href="./styles.css?v=1782947137" />
+
+  <link rel="manifest" href="./manifest.json?v=1782947137" />
+  <meta name="theme-color" content="#07101f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Queimadas GO" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+
+</head>
+
+<body>
+<div id="map"></div>
+
+
+  <div id="orientacaoHorizontalAviso" class="orientacao-horizontal-aviso" aria-live="polite">
+    <div class="orientacao-horizontal-card">
+      <div class="orientacao-horizontal-icon">↻</div>
+      <strong>Vire o celular</strong>
+      <span>Este mapa foi ajustado para funcionar na horizontal.</span>
+      <small>Gire o aparelho para continuar usando o site.</small>
+    </div>
+  </div>
+
+
+
+
+  <div id="painelBaseOpcoes" class="panel foco-opcoes-panel hidden-ui">
+    <div class="foco-opcoes-head">
+      <strong>Opções da base</strong>
+      <button id="btnFecharPainelBase" type="button" aria-label="Fechar opções da base">×</button>
+    </div>
+    <div id="painelBaseConteudo" class="foco-opcoes-content"></div>
+  </div>
+
+
+  <div id="painelCercoManualOpcoes" class="panel foco-opcoes-panel hidden-ui">
+    <div class="foco-opcoes-head">
+      <strong>Opções do cerco manual</strong>
+      <button id="btnFecharPainelCercoManual" type="button" aria-label="Fechar opções do cerco manual">×</button>
+    </div>
+    <div id="painelCercoManualConteudo" class="foco-opcoes-content"></div>
+  </div>
+
+
+  <div id="painelEventoOpcoes" class="panel foco-opcoes-panel evento-info-panel hidden-ui">
+    <div class="foco-opcoes-head">
+      <strong>Informações do evento</strong>
+      <button id="btnFecharPainelEvento" type="button" aria-label="Fechar informações do evento">×</button>
+    </div>
+    <div id="painelEventoConteudo" class="foco-opcoes-content evento-info-conteudo"></div>
+  </div>
+
+  <div id="painelFocoOpcoes" class="panel foco-opcoes-panel hidden-ui">
+    <div class="foco-opcoes-head">
+      <strong>Opções do foco</strong>
+      <button id="btnFecharPainelFoco" type="button" aria-label="Fechar opções">×</button>
+    </div>
+    <div id="painelFocoConteudo" class="foco-opcoes-content"></div>
+  </div>
+
+
+  
+  <div class="panel side">
+    <div class="side-fixed-controls">
+      <div class="controls-panel">
+        <select id="periodo" title="Período">
+          <option value="1">Última 1 hora</option>
+          <option value="3">Últimas 3 horas</option>
+          <option value="6">Últimas 6 horas</option>
+          <option value="12">Últimas 12 horas</option>
+          <option value="24" selected>Últimas 24 horas</option>
+          <option value="48">Últimas 48 horas</option>
+        </select>
+
+        <select id="municipio" title="Filtrar por cidade">
+          <option value="">Todos os municípios</option>
+        </select>
+
+        <input type="hidden" id="usarEntorno" value="on" checked />
+        <input type="hidden" id="raioEntorno" value="10" />
+
+        <button id="btnAtualizar" class="primary">Atualizar</button>
+        <button id="btnMinhaLocalizacao" class="secondary">Minha localização</button>
+      </div>
+    </div>
+
+    <div class="side-scroll-content">
+      <div class="stats">
+        <div class="stat">
+          <span class="num" id="totalFocos">0</span>
+          <span class="label">focos total na área selecionada</span>
+        </div>
+        <div class="stat">
+          <span class="num" id="totalRecentes">0</span>
+          <span class="label">focos recentes na área</span>
+        </div>
+        <div class="stat">
+          <span class="num" id="totalAnteriores">0</span>
+          <span class="label">focos anteriores na área</span>
+        </div>
+      </div>
+
+      <div id="status">Carregando dados...</div>
+
+      <div class="data-card">
+        <h2>Operação de campo</h2>
+        <div class="operation-card">
+          <div class="op-target-name" id="operacaoAlvoNome">Nenhum foco/evento definido como alvo.</div>
+          <div class="op-grid">
+            <div class="op-metric"><b id="operacaoDistancia">--</b><span>distância até o fogo</span></div>
+            <div class="op-metric"><b id="operacaoRumo">--</b><span>rumo / direção</span></div>
+            <div class="op-metric"><b id="operacaoGps">--</b><span>GPS / precisão</span></div>
+          </div>
+          <div class="op-actions">
+            <button class="primary" id="btnRotaAlvo" type="button">Rota até alvo</button>
+            <button class="primary hidden-ui" id="btnNavegarRotaInterna" type="button">Navegar rota até alvo</button>
+            <button class="secondary hidden-ui" id="btnPararNavegacaoInterna" type="button">Parar navegação</button>
+            <button class="secondary hidden-ui" id="btnLimparRotaAcessoPainel" type="button">Limpar rota até alvo</button>
+            <button class="secondary" id="btnAreaAcaoAlvo" type="button">Limpar cercos</button>
+            <button class="secondary" id="btnCopiarAlvo" type="button">Copiar coordenada</button>
+            <button class="secondary" id="btnLimparAlvo" type="button">Limpar alvo</button>
+          </div>
+        </div>
+      </div>
+<div class="data-card">
+        <h2>Base operacional</h2>
+        <div class="op-actions">
+          <button class="secondary" id="btnMarcarBase" type="button">Marcar base</button>
+          <button class="secondary" id="btnLimparBases" type="button">Limpar bases</button>
+        </div>
+      </div>
+<div class="data-card rota-offline-card">
+        <h2>Caminho percorrido</h2>
+        <div class="search-row caminho-actions">
+          <button id="btnToggleRota" class="primary" type="button">Gravar caminho</button>
+          <button id="btnLimparRota" class="secondary" type="button">Limpar caminho</button>
+        </div>
+        <div class="small" id="rotaStatus" style="margin-top:8px;">Caminho: parado.</div>
+      </div>
+</div>
+    <div class="side-fixed-legend" id="legend">
+      <div><span class="legend-fire" id="legendFireHot"></span><strong>Foco recente</strong> – fogo colorido; número = horário de detecção</div>
+      <div><span class="legend-fire" id="legendFireGray"></span><strong>Foco anterior</strong> – fogo cinza na coordenada recebida</div>
+      <div><span class="dot" style="background:#4aa3ff"></span><strong>Sua localização</strong> – ponto azul</div>
+      <div class="legend-user-row"><span class="marker-op base legend-user-marker">B</span><strong>Marcações do usuário</strong></div>
+      <div class="legend-event-row"><span class="legend-event-info ativo">i</span><strong>Evento ativo</strong> – dado KML oficial</div>
+      <div class="legend-event-row"><span class="legend-event-info observacao">i</span><strong>Evento em observação</strong> – dado KML oficial</div>
+</div>
+</div>
+
+    <input id="busca" type="hidden" value="" />
+    <button id="btnCopiarDados" type="button" style="display:none">Copiar dados</button>
+  </div>
+
+  <div id="loading" class="loading" aria-hidden="true"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+
+    <script src="./app.js?v=1782947137"></script>
+
+</body>
+</html>
