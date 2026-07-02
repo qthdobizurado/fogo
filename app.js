@@ -155,7 +155,9 @@ let goiasGeometry = null;
       painelCercoManualOpcoes: document.getElementById("painelCercoManualOpcoes"),
       painelCercoManualConteudo: document.getElementById("painelCercoManualConteudo"),
       painelEventoOpcoes: document.getElementById("painelEventoOpcoes"),
-      painelEventoConteudo: document.getElementById("painelEventoConteudo")
+      painelEventoConteudo: document.getElementById("painelEventoConteudo"),
+      painelLateral: document.getElementById("painelLateral"),
+      btnTogglePainelLateral: document.getElementById("btnTogglePainelLateral")
     };
 
     function setStatus(texto, tipo = "") {
@@ -171,6 +173,145 @@ let goiasGeometry = null;
 
     function painelVisivel(el) {
       return !!(el && el.classList && !el.classList.contains("hidden-ui"));
+    }
+
+    function setPainelLateralRecolhido(recolhido, salvar = true) {
+      if (!els.painelLateral) return;
+
+      els.painelLateral.classList.toggle("side-collapsed", !!recolhido);
+
+      if (els.btnTogglePainelLateral) {
+        els.btnTogglePainelLateral.textContent = recolhido ? "›" : "‹";
+        els.btnTogglePainelLateral.title = recolhido ? "Abrir painel" : "Recolher painel";
+        els.btnTogglePainelLateral.setAttribute("aria-label", recolhido ? "Abrir painel lateral" : "Recolher painel lateral");
+        els.btnTogglePainelLateral.setAttribute("aria-expanded", recolhido ? "false" : "true");
+      }
+
+      if (salvar) {
+        try { localStorage.setItem("painelLateralRecolhido", recolhido ? "1" : "0"); } catch (_) {}
+      }
+
+      if (map && typeof map.invalidateSize === "function") {
+        setTimeout(() => map.invalidateSize(), 220);
+      }
+    }
+
+    function instalarTogglePainelLateral() {
+      if (!els.painelLateral || !els.btnTogglePainelLateral) return;
+
+      let recolhidoSalvo = false;
+      try { recolhidoSalvo = localStorage.getItem("painelLateralRecolhido") === "1"; } catch (_) {}
+      setPainelLateralRecolhido(recolhidoSalvo, false);
+
+      els.btnTogglePainelLateral.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setPainelLateralRecolhido(!els.painelLateral.classList.contains("side-collapsed"));
+      });
+    }
+
+    function limitarNumero(valor, minimo, maximo) {
+      if (!Number.isFinite(valor)) return minimo;
+      return Math.max(minimo, Math.min(maximo, valor));
+    }
+
+    function manterPainelDentroDaTela(painel) {
+      if (!painel || painel.classList.contains("hidden-ui") || !painel.classList.contains("panel-dragged")) return;
+
+      const margem = 6;
+      const rect = painel.getBoundingClientRect();
+      const largura = Math.max(40, rect.width);
+      const altura = Math.max(40, rect.height);
+      const maxLeft = Math.max(margem, window.innerWidth - largura - margem);
+      const maxTop = Math.max(margem, window.innerHeight - altura - margem);
+      const leftAtual = Number.parseFloat(painel.style.left);
+      const topAtual = Number.parseFloat(painel.style.top);
+
+      painel.style.setProperty("left", limitarNumero(Number.isFinite(leftAtual) ? leftAtual : rect.left, margem, maxLeft) + "px", "important");
+      painel.style.setProperty("top", limitarNumero(Number.isFinite(topAtual) ? topAtual : rect.top, margem, maxTop) + "px", "important");
+      painel.style.setProperty("right", "auto", "important");
+      painel.style.setProperty("bottom", "auto", "important");
+    }
+
+    function instalarArrastePainel(painel) {
+      if (!painel) return;
+      const cabecalho = painel.querySelector(".foco-opcoes-head");
+      if (!cabecalho) return;
+
+      let arrastando = false;
+      let deslocX = 0;
+      let deslocY = 0;
+      let largura = 0;
+      let altura = 0;
+
+      const mover = (ev) => {
+        if (!arrastando) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        const margem = 6;
+        const maxLeft = Math.max(margem, window.innerWidth - largura - margem);
+        const maxTop = Math.max(margem, window.innerHeight - altura - margem);
+        const novoLeft = limitarNumero(ev.clientX - deslocX, margem, maxLeft);
+        const novoTop = limitarNumero(ev.clientY - deslocY, margem, maxTop);
+
+        painel.style.setProperty("left", novoLeft + "px", "important");
+        painel.style.setProperty("top", novoTop + "px", "important");
+        painel.style.setProperty("right", "auto", "important");
+        painel.style.setProperty("bottom", "auto", "important");
+      };
+
+      const finalizar = (ev) => {
+        if (!arrastando) return;
+        arrastando = false;
+        painel.classList.remove("panel-dragging");
+        document.body.classList.remove("arrastando-painel-info");
+        try { cabecalho.releasePointerCapture(ev.pointerId); } catch (_) {}
+        document.removeEventListener("pointermove", mover, true);
+        document.removeEventListener("pointerup", finalizar, true);
+        document.removeEventListener("pointercancel", finalizar, true);
+        manterPainelDentroDaTela(painel);
+      };
+
+      cabecalho.addEventListener("pointerdown", (ev) => {
+        if (ev.button != null && ev.button !== 0) return;
+        if (ev.target && ev.target.closest && ev.target.closest("button, a, input, select, textarea")) return;
+
+        const rect = painel.getBoundingClientRect();
+        largura = Math.max(40, rect.width);
+        altura = Math.max(40, rect.height);
+        deslocX = ev.clientX - rect.left;
+        deslocY = ev.clientY - rect.top;
+
+        painel.classList.add("panel-dragged", "panel-dragging");
+        painel.style.setProperty("left", rect.left + "px", "important");
+        painel.style.setProperty("top", rect.top + "px", "important");
+        painel.style.setProperty("right", "auto", "important");
+        painel.style.setProperty("bottom", "auto", "important");
+
+        arrastando = true;
+        document.body.classList.add("arrastando-painel-info");
+        ev.preventDefault();
+        ev.stopPropagation();
+        try { cabecalho.setPointerCapture(ev.pointerId); } catch (_) {}
+        document.addEventListener("pointermove", mover, true);
+        document.addEventListener("pointerup", finalizar, true);
+        document.addEventListener("pointercancel", finalizar, true);
+      }, { passive: false });
+    }
+
+    function instalarArrastePaineisInfo() {
+      [
+        els.painelFocoOpcoes,
+        els.painelEventoOpcoes,
+        els.painelBaseOpcoes,
+        els.painelCercoManualOpcoes
+      ].forEach(instalarArrastePainel);
+
+      window.addEventListener("resize", () => {
+        [els.painelFocoOpcoes, els.painelEventoOpcoes, els.painelBaseOpcoes, els.painelCercoManualOpcoes]
+          .forEach(manterPainelDentroDaTela);
+      });
     }
 
     function interfaceEmUsoAgora() {
@@ -217,6 +358,7 @@ let goiasGeometry = null;
 
       els.painelEventoConteudo.innerHTML = htmlConteudo || "<strong>Evento</strong><br>Sem informações disponíveis.";
       els.painelEventoOpcoes.classList.remove("hidden-ui");
+      manterPainelDentroDaTela(els.painelEventoOpcoes);
 
       const dataOffline = ultimoEstadoSalvoEm ? new Date(ultimoEstadoSalvoEm).toLocaleString("pt-BR") : "data não registrada";
       if (estadoOfflineCarregadoNestaSessao || navigator.onLine === false) {
@@ -240,6 +382,7 @@ let goiasGeometry = null;
       fecharPainelFocoOpcoes();
       els.painelBaseConteudo.innerHTML = htmlConteudo;
       els.painelBaseOpcoes.classList.remove("hidden-ui");
+      manterPainelDentroDaTela(els.painelBaseOpcoes);
       return true;
     }
 
@@ -268,6 +411,7 @@ let goiasGeometry = null;
         `</div>`;
 
       els.painelCercoManualOpcoes.classList.remove("hidden-ui");
+      manterPainelDentroDaTela(els.painelCercoManualOpcoes);
       return true;
     }
 
@@ -1381,7 +1525,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947139", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947140", {
           updateViaCache: "none"
         });
 
@@ -3592,6 +3736,7 @@ out body;`;
 
       els.painelFocoConteudo.innerHTML = htmlConteudo;
       els.painelFocoOpcoes.classList.remove("hidden-ui");
+      manterPainelDentroDaTela(els.painelFocoOpcoes);
       atualizarBotoesPainelFoco();
 
       registrarLogPopupFoco("painel proprio foco exibido", {
@@ -5090,6 +5235,9 @@ if (document.getElementById("btnLimparRota")) {
     });
 
 
+    instalarTogglePainelLateral();
+    instalarArrastePaineisInfo();
+
     if (document.getElementById("btnFecharPainelEvento")) {
       document.getElementById("btnFecharPainelEvento").addEventListener("click", fecharPainelEventoOpcoes);
     }
@@ -5125,7 +5273,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947139" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947140" });
 
     atualizar();
 setInterval(() => {

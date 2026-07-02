@@ -1745,3 +1745,118 @@ svg.fire-icon * {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Ajuste 1782947140: recolher painel lateral e arrastar painéis de informação pelo topo. */
+.side {
+  transition: width .18s ease, max-width .18s ease, height .18s ease, padding .18s ease, border-radius .18s ease, transform .18s ease;
+}
+
+.side-inner {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.side-toggle {
+  position: absolute;
+  z-index: 40;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(7, 12, 22, .92);
+  color: #eaf1ff;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,.38);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.side-toggle:hover {
+  filter: brightness(1.12);
+}
+
+.side .side-fixed-controls {
+  padding-right: 54px;
+}
+
+.side.side-collapsed {
+  width: 48px !important;
+  max-width: 48px !important;
+  min-width: 48px !important;
+  height: 48px !important;
+  max-height: 48px !important;
+  bottom: auto !important;
+  padding: 0 !important;
+  border-radius: 16px !important;
+  overflow: visible !important;
+}
+
+.side.side-collapsed .side-inner {
+  display: none !important;
+}
+
+.side.side-collapsed .side-toggle {
+  top: 6px;
+  left: 6px;
+  right: auto;
+}
+
+.foco-opcoes-head {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.foco-opcoes-head:active,
+.foco-opcoes-panel.panel-dragging .foco-opcoes-head {
+  cursor: grabbing;
+}
+
+.foco-opcoes-head button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.foco-opcoes-panel.panel-dragged {
+  right: auto !important;
+  bottom: auto !important;
+}
+
+.foco-opcoes-panel.panel-dragging {
+  transition: none !important;
+  box-shadow: 0 18px 42px rgba(0,0,0,.55) !important;
+}
+
+@media (max-width: 1160px) {
+  .side.side-collapsed {
+    left: max(8px, env(safe-area-inset-left)) !important;
+    top: max(8px, env(safe-area-inset-top)) !important;
+    right: auto !important;
+    bottom: auto !important;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .foco-opcoes-panel.panel-dragged,
+  .evento-info-panel.panel-dragged {
+    right: auto !important;
+    bottom: auto !important;
+  }
+}
+
+body.arrastando-painel-info {
+  user-select: none !important;
+  cursor: grabbing !important;
+}
