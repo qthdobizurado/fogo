@@ -233,6 +233,18 @@ let goiasGeometry = null;
       painel.style.setProperty("bottom", "auto", "important");
     }
 
+    function resetarNascimentoPainelInfo(painel) {
+      if (!painel) return;
+
+      // Quando o usuário arrasta uma caixa, ficam estilos inline salvos naquela sessão.
+      // Ao abrir uma nova informação de foco/evento, ela deve nascer novamente no topo.
+      painel.classList.remove("panel-dragged", "panel-dragging");
+      ["left", "top", "right", "bottom"].forEach((prop) => painel.style.removeProperty(prop));
+      painel.scrollTop = 0;
+      const conteudo = painel.querySelector(".foco-opcoes-content, .evento-info-conteudo");
+      if (conteudo) conteudo.scrollTop = 0;
+    }
+
     function instalarArrastePainel(painel) {
       if (!painel) return;
       const cabecalho = painel.querySelector(".foco-opcoes-head");
@@ -357,8 +369,8 @@ let goiasGeometry = null;
       if (typeof fecharPainelCercoManualOpcoes === "function") fecharPainelCercoManualOpcoes();
 
       els.painelEventoConteudo.innerHTML = htmlConteudo || "<strong>Evento</strong><br>Sem informações disponíveis.";
+      resetarNascimentoPainelInfo(els.painelEventoOpcoes);
       els.painelEventoOpcoes.classList.remove("hidden-ui");
-      manterPainelDentroDaTela(els.painelEventoOpcoes);
 
       const dataOffline = ultimoEstadoSalvoEm ? new Date(ultimoEstadoSalvoEm).toLocaleString("pt-BR") : "data não registrada";
       if (estadoOfflineCarregadoNestaSessao || navigator.onLine === false) {
@@ -1525,7 +1537,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947140", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947141", {
           updateViaCache: "none"
         });
 
@@ -3735,8 +3747,8 @@ out body;`;
       if (!els.painelFocoOpcoes || !els.painelFocoConteudo) return false;
 
       els.painelFocoConteudo.innerHTML = htmlConteudo;
+      resetarNascimentoPainelInfo(els.painelFocoOpcoes);
       els.painelFocoOpcoes.classList.remove("hidden-ui");
-      manterPainelDentroDaTela(els.painelFocoOpcoes);
       atualizarBotoesPainelFoco();
 
       registrarLogPopupFoco("painel proprio foco exibido", {
@@ -5273,7 +5285,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947140" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947141" });
 
     atualizar();
 setInterval(() => {
