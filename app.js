@@ -1381,7 +1381,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947137", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947138", {
           updateViaCache: "none"
         });
 
@@ -3687,10 +3687,13 @@ out body;`;
               label: info.label
             });
 
-            abrirPainelFocoOpcoes(popupHtml, origem);
+            const abriuPainel = abrirPainelFocoOpcoes(popupHtml, origem);
+            if (abriuPainel) {
+              try { map.closePopup(); } catch (_) {}
+              return;
+            }
 
-            // Mantém o popup nativo apenas como fallback/diagnóstico; se ele ficar invisível,
-            // o painel próprio acima do mapa continua mostrando as opções.
+            // Fallback: se o painel próprio não puder abrir por algum motivo, usa o popup nativo do Leaflet.
             try {
               marker.openPopup();
               setTimeout(() => {
@@ -5122,7 +5125,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947137" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947138" });
 
     atualizar();
 setInterval(() => {

@@ -1709,3 +1709,31 @@ svg.fire-icon * {
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* Ajuste 1782947138: remove legendas da tela e abre informações no topo no celular. */
+.side-fixed-legend,
+#legend {
+  display: none !important;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .foco-opcoes-panel,
+  .evento-info-panel {
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    top: max(8px, env(safe-area-inset-top)) !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
+  }
+
+  .foco-opcoes-content,
+  .evento-info-conteudo {
+    max-height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
