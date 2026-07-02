@@ -1381,7 +1381,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947138", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947139", {
           updateViaCache: "none"
         });
 
@@ -5125,7 +5125,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947138" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947139" });
 
     atualizar();
 setInterval(() => {

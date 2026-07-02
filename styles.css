@@ -1711,7 +1711,7 @@ svg.fire-icon * {
 }
 
 
-/* Ajuste 1782947138: remove legendas da tela e abre informações no topo no celular. */
+/* Ajuste 1782947139: remove legendas e abre informações no topo sem aumentar a largura no celular. */
 .side-fixed-legend,
 #legend {
   display: none !important;
@@ -1720,14 +1720,22 @@ svg.fire-icon * {
 @media (max-width: 700px), (pointer: coarse) {
   .foco-opcoes-panel,
   .evento-info-panel {
-    left: max(8px, env(safe-area-inset-left)) !important;
-    right: max(8px, env(safe-area-inset-right)) !important;
+    left: auto !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
     top: max(8px, env(safe-area-inset-top)) !important;
     bottom: auto !important;
-    width: auto !important;
-    max-width: none !important;
     max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
     overflow: hidden !important;
+  }
+
+  .foco-opcoes-panel {
+    width: min(360px, calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right))) !important;
+    max-width: calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)) !important;
+  }
+
+  .evento-info-panel {
+    width: min(520px, 88vw) !important;
+    max-width: calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)) !important;
   }
 
   .foco-opcoes-content,
