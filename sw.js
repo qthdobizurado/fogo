@@ -1,4 +1,4 @@
-const APP_BUILD = "1782947141";
+const APP_BUILD = "1782947142";
 const STATIC_CACHE = "queimadas-goias-static-" + APP_BUILD;
 const RUNTIME_CACHE = "queimadas-goias-runtime-" + APP_BUILD;
 

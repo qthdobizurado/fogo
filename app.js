@@ -1537,7 +1537,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947141", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947142", {
           updateViaCache: "none"
         });
 
@@ -4075,9 +4075,102 @@ out body;`;
     }
 
     function algumPontoEmGoias(coords) {
+      const pontos = (coords || [])
+        .map(([lat, lon]) => [Number(lat), Number(lon)])
+        .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+
       const m = municipioSelecionado();
-      if (m) return algumPontoDentroDoFiltroMunicipio(coords);
-      return (coords || []).some(([lat, lon]) => pontoDentroDeGoias(lat, lon));
+      if (!m) return pontos.some(([lat, lon]) => pontoDentroDeGoias(lat, lon));
+
+      return eventoDentroDoFiltroMunicipio(pontos, m);
+    }
+
+    function eventoDentroDoFiltroMunicipio(coords, municipio) {
+      if (!municipio || !municipio.feature || !municipio.feature.geometry) return false;
+      if (!Array.isArray(coords) || !coords.length) return false;
+
+      // Mesma regra dos focos: dentro da cidade selecionada ou no entorno de 10 km.
+      // Para eventos com linhas/polígonos, além dos vértices, também amostra os segmentos,
+      // evitando esconder um evento que cruza a cidade sem ter um vértice dentro dela.
+      if (coords.some(([lat, lon]) => pontoDentroDoFiltroMunicipio(lat, lon))) return true;
+
+      const centro = centroDosPontos(coords);
+      if (centro && pontoDentroDoFiltroMunicipio(centro[0], centro[1])) return true;
+
+      if (algumSegmentoEventoDentroDoFiltroMunicipio(coords)) return true;
+
+      // Se o polígono do evento cobrir parte/total da cidade, pode acontecer de todos os
+      // vértices do evento ficarem fora do município. Nesse caso testa pontos do município
+      // dentro do polígono do evento.
+      if (coords.length >= 3 && algumPontoMunicipioDentroDoPoligonoEvento(coords, municipio.feature.geometry)) return true;
+
+      return false;
+    }
+
+    function algumSegmentoEventoDentroDoFiltroMunicipio(coords) {
+      if (!Array.isArray(coords) || coords.length < 2) return false;
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coords[i];
+        const b = coords[i + 1];
+        if (!a || !b) continue;
+
+        const lat1 = Number(a[0]);
+        const lon1 = Number(a[1]);
+        const lat2 = Number(b[0]);
+        const lon2 = Number(b[1]);
+        if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) continue;
+
+        const km = distanciaKm(lat1, lon1, lat2, lon2);
+        const passos = Math.max(1, Math.min(80, Math.ceil(km / 2)));
+
+        for (let j = 0; j <= passos; j++) {
+          const t = j / passos;
+          const lat = lat1 + (lat2 - lat1) * t;
+          const lon = lon1 + (lon2 - lon1) * t;
+          if (pontoDentroDoFiltroMunicipio(lat, lon)) return true;
+        }
+      }
+
+      return false;
+    }
+
+    function extrairPontosGeojsonParaTeste(geometry, limite = 900) {
+      const pontos = [];
+
+      const adicionarRing = (ring) => {
+        if (!Array.isArray(ring) || !ring.length) return;
+        const passo = Math.max(1, Math.ceil(ring.length / 120));
+        for (let i = 0; i < ring.length; i += passo) {
+          const p = ring[i];
+          if (!p) continue;
+          const lon = Number(p[0]);
+          const lat = Number(p[1]);
+          if (Number.isFinite(lat) && Number.isFinite(lon)) pontos.push([lat, lon]);
+          if (pontos.length >= limite) return;
+        }
+      };
+
+      if (!geometry) return pontos;
+
+      if (geometry.type === "Polygon") {
+        (geometry.coordinates || []).forEach(adicionarRing);
+      } else if (geometry.type === "MultiPolygon") {
+        (geometry.coordinates || []).forEach(poly => (poly || []).forEach(adicionarRing));
+      }
+
+      return pontos;
+    }
+
+    function algumPontoMunicipioDentroDoPoligonoEvento(coordsEvento, geometryMunicipio) {
+      const ringEvento = (coordsEvento || [])
+        .map(([lat, lon]) => [Number(lon), Number(lat)])
+        .filter(([lon, lat]) => Number.isFinite(lat) && Number.isFinite(lon));
+
+      if (ringEvento.length < 3) return false;
+
+      const pontosMunicipio = extrairPontosGeojsonParaTeste(geometryMunicipio);
+      return pontosMunicipio.some(([lat, lon]) => pointInPolygon([lon, lat], [ringEvento]));
     }
 
     function normalizarTextoEvento(valor) {
@@ -4214,7 +4307,8 @@ out body;`;
         ? `<div class="evento-popup-linha"><span>Coordenadas da geometria</span><strong>${coordsEvento.length}</strong></div>`
         : "";
 
-      const descricaoBloco = descricao
+      const temDadosEstruturados = Object.keys(dados || {}).some(k => String(dados[k] || "").trim() !== "");
+      const descricaoBloco = descricao && !temDadosEstruturados
         ? `<div class="evento-popup-descricao"><strong>Descrição original do KML</strong><br>${escapeHtml(descricao.slice(0, 2200))}${descricao.length > 2200 ? "..." : ""}</div>`
         : "";
 
@@ -4369,7 +4463,19 @@ out body;`;
           bubblingMouseEvents: false
         }));
 
+        const polygonClique = L.polygon(coords, {
+          color: "#ffffff",
+          weight: 1,
+          opacity: 0.01,
+          fillColor: "#ffffff",
+          fillOpacity: 0.01,
+          pane: "paneEventos",
+          interactive: true,
+          bubblingMouseEvents: false
+        });
+
         configurarCamadaEventoClicavel(polygon, popup).addTo(layerGroup);
+        configurarCamadaEventoClicavel(polygonClique, popup).addTo(layerGroup);
         registrarEventoNoMapa(coords, tipo);
         registrarEventoSnapshot(tipo, "polygon", coords, tipoLabel);
         const centro = centroDosPontos(coords) || coords[Math.floor(coords.length / 2)];
@@ -5285,7 +5391,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947141" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947142" });
 
     atualizar();
 setInterval(() => {
