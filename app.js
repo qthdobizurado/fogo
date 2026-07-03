@@ -119,6 +119,7 @@ let goiasGeometry = null;
     let autoSaveOfflineTimer = null;
     let estadoOfflineCarregadoNestaSessao = false;
     let atualizacaoEmAndamento = false;
+    let atualizacaoPendenteAposAtual = false;
     let atualizacaoAutomaticaPendente = false;
     let ultimaInteracaoUsuario = Date.now();
     const TEMPO_ESPERA_INTERACAO_AUTO_MS = 20000;
@@ -1357,6 +1358,7 @@ let goiasGeometry = null;
       layerEventosAtivos.clearLayers();
       layerEventosObservacao.clearLayers();
       resetarEventosMapaResumo();
+      limparEventosClicaveisTipo();
 
       const tipos = [
         ["ativo", layerEventosAtivos],
@@ -1391,6 +1393,7 @@ let goiasGeometry = null;
               bubblingMouseEvents: false
             });
             configurarCamadaEventoClicavel(ponto, popup).addTo(layer);
+            registrarEventoClicavelNoMapa(tipo, "point", [[lat, lon]], popup);
             marcadorDestaqueEvento(lat, lon, tipo, popup);
             registrarEventoNoMapa([lat, lon], tipo);
           } else if (item.geometria === "polygon") {
@@ -1401,6 +1404,7 @@ let goiasGeometry = null;
               bubblingMouseEvents: false
             }));
             configurarCamadaEventoClicavel(polygon, popup).addTo(layer);
+            registrarEventoClicavelNoMapa(tipo, "polygon", coords, popup);
             registrarEventoNoMapa(coords, tipo);
             const centro = centroDosPontos(coords) || coords[Math.floor(coords.length / 2)];
             if (centro) marcadorDestaqueEvento(centro[0], centro[1], tipo, popup);
@@ -1422,6 +1426,7 @@ let goiasGeometry = null;
 
             configurarCamadaEventoClicavel(linhaVisual, popup).addTo(layer);
             configurarCamadaEventoClicavel(linhaClique, popup).addTo(layer);
+            registrarEventoClicavelNoMapa(tipo, "line", coords, popup);
 
             registrarEventoNoMapa(coords, tipo);
             const meio = coords[Math.floor(coords.length / 2)];
@@ -1537,7 +1542,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947142", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947144", {
           updateViaCache: "none"
         });
 
@@ -1642,7 +1647,10 @@ let goiasGeometry = null;
       return salvarEstadoOfflineAutomatico({ salvarTiles: true });
     }
 
-    function carregarMapaOfflineSalvo() {
+    function carregarMapaOfflineSalvo(opcoes = {}) {
+      const preservarFiltrosAtuais = !!(opcoes && opcoes.preservarFiltrosAtuais);
+      const periodoAtual = els.periodo ? els.periodo.value : "";
+      const municipioAtual = els.municipio ? els.municipio.value : "";
       let snapshot = null;
 
       try {
@@ -1665,8 +1673,14 @@ let goiasGeometry = null;
       eventosAtualizacaoMeta.ativo = Object.assign({ baixadoEm: ultimoEstadoSalvoEm, lastModified: "", erroEm: 0, erro: "" }, eventosAtualizacaoMeta.ativo || {}, { offline: true });
       eventosAtualizacaoMeta.observacao = Object.assign({ baixadoEm: ultimoEstadoSalvoEm, lastModified: "", erroEm: 0, erro: "" }, eventosAtualizacaoMeta.observacao || {}, { offline: true });
 
-      if (els.periodo && snapshot.periodo) els.periodo.value = snapshot.periodo;
-      if (els.municipio && snapshot.municipio !== undefined) els.municipio.value = snapshot.municipio;
+      if (!preservarFiltrosAtuais) {
+        if (els.periodo && snapshot.periodo) els.periodo.value = snapshot.periodo;
+        if (els.municipio && snapshot.municipio !== undefined) els.municipio.value = snapshot.municipio;
+      } else {
+        if (els.periodo) els.periodo.value = periodoAtual;
+        if (els.municipio) els.municipio.value = municipioAtual;
+      }
+      atualizarDestaqueMunicipioSelecionado();
 
       focosAtuais = Array.isArray(snapshot.focos) ? snapshot.focos : [];
       desenharFocos(focosAtuais);
@@ -1698,7 +1712,8 @@ let goiasGeometry = null;
       }
 
       const data = new Date(snapshot.savedAt || Date.now()).toLocaleString("pt-BR");
-      setStatus(`Sem internet: usando último estado salvo em ${data}. Área: ${snapshot.municipioTexto || "Goiás inteiro"}.`, "ok");
+      const areaOffline = preservarFiltrosAtuais ? (textoFiltroCidade() || "Goiás inteiro") : (snapshot.municipioTexto || "Goiás inteiro");
+      setStatus(`Sem internet: usando último estado salvo em ${data}. Área: ${areaOffline}.`, "ok");
       return true;
     }
 
@@ -2707,6 +2722,7 @@ out body;`;
     let eventosMapaTotal = 0;
     let eventosMapaAtivos = 0;
     let eventosMapaObservacao = 0;
+    let eventosClicaveisNoMapa = [];
 
     function logEventoDebug(mensagem, dados = null) {
     }
@@ -2760,6 +2776,128 @@ out body;`;
         maxZoom: 13,
         animate: true
       });
+    }
+
+    function limparEventosClicaveisTipo(tipo = null) {
+      if (!tipo) {
+        eventosClicaveisNoMapa = [];
+        return;
+      }
+      eventosClicaveisNoMapa = eventosClicaveisNoMapa.filter(e => e.tipo !== tipo);
+    }
+
+    function registrarEventoClicavelNoMapa(tipo, geometria, coords, popup) {
+      const pontos = (coords || [])
+        .map(([lat, lon]) => [Number(lat), Number(lon)])
+        .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+
+      if (!pontos.length || !popup) return;
+
+      let minLat = Infinity, minLon = Infinity, maxLat = -Infinity, maxLon = -Infinity;
+      pontos.forEach(([lat, lon]) => {
+        minLat = Math.min(minLat, lat);
+        minLon = Math.min(minLon, lon);
+        maxLat = Math.max(maxLat, lat);
+        maxLon = Math.max(maxLon, lon);
+      });
+
+      eventosClicaveisNoMapa.push({
+        tipo,
+        geometria,
+        coords: pontos,
+        popup,
+        bounds: { minLat, minLon, maxLat, maxLon }
+      });
+    }
+
+    function toleranciaCliqueEventoKm(lat, pixels = 18) {
+      try {
+        const zoom = map.getZoom ? map.getZoom() : 10;
+        const metrosPorPixel = 156543.03392 * Math.cos(Number(lat) * Math.PI / 180) / Math.pow(2, zoom);
+        return Math.max(0.08, Math.min(2.5, (metrosPorPixel * pixels) / 1000));
+      } catch (_) {
+        return 0.8;
+      }
+    }
+
+    function pontoPertoSegmentoEventoKm(lat, lon, a, b) {
+      if (!a || !b) return Infinity;
+
+      const lat1 = Number(a[0]);
+      const lon1 = Number(a[1]);
+      const lat2 = Number(b[0]);
+      const lon2 = Number(b[1]);
+      if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
+
+      const kmSegmento = distanciaKm(lat1, lon1, lat2, lon2);
+      const passos = Math.max(1, Math.min(60, Math.ceil(kmSegmento / 0.4)));
+      let melhor = Infinity;
+
+      for (let i = 0; i <= passos; i++) {
+        const t = i / passos;
+        const la = lat1 + (lat2 - lat1) * t;
+        const lo = lon1 + (lon2 - lon1) * t;
+        melhor = Math.min(melhor, distanciaKm(lat, lon, la, lo));
+      }
+
+      return melhor;
+    }
+
+    function pontoTocaEventoRegistrado(evento, lat, lon) {
+      if (!evento || !evento.coords || !evento.coords.length) return false;
+
+      const tol = toleranciaCliqueEventoKm(lat, evento.geometria === "polygon" ? 10 : 24);
+      const margem = Math.max(tol, 0.2);
+      const b = evento.bounds || {};
+
+      if (
+        Number.isFinite(b.minLat) &&
+        (lat < b.minLat - margem || lat > b.maxLat + margem || lon < b.minLon - margem || lon > b.maxLon + margem)
+      ) {
+        return false;
+      }
+
+      if (evento.geometria === "polygon" && evento.coords.length >= 3) {
+        const ring = evento.coords.map(([la, lo]) => [lo, la]);
+        if (pointInPolygon([lon, lat], [ring])) return true;
+      }
+
+      if (evento.geometria === "point") {
+        return evento.coords.some(([la, lo]) => distanciaKm(lat, lon, la, lo) <= Math.max(tol, 0.35));
+      }
+
+      for (let i = 0; i < evento.coords.length - 1; i++) {
+        if (pontoPertoSegmentoEventoKm(lat, lon, evento.coords[i], evento.coords[i + 1]) <= tol) return true;
+      }
+
+      return false;
+    }
+
+    function abrirEventoPorCliqueNoMapa(ev) {
+      if (aceiroManualAtivo || modoMarcacaoOperacional) return;
+      if (!ev || !ev.latlng || !eventosClicaveisNoMapa.length) return;
+
+      const lat = Number(ev.latlng.lat);
+      const lon = Number(ev.latlng.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+      // Percorre de trás para frente para priorizar o evento desenhado por último/topo.
+      for (let i = eventosClicaveisNoMapa.length - 1; i >= 0; i--) {
+        const item = eventosClicaveisNoMapa[i];
+        if (!pontoTocaEventoRegistrado(item, lat, lon)) continue;
+
+        try {
+          if (ev.originalEvent) {
+            ev.originalEvent.preventDefault && ev.originalEvent.preventDefault();
+            ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+          }
+        } catch (_) {}
+
+        if (abrirPainelEventoOpcoes(item.popup)) {
+          setStatus("Evento selecionado pela área do mapa.", "ok");
+        }
+        return;
+      }
     }
 
     function abrirPopupEvento(layer, popup, ev = null) {
@@ -2819,6 +2957,8 @@ out body;`;
 
       return layer;
     }
+
+    map.on("click", abrirEventoPorCliqueNoMapa);
 
     function marcadorDestaqueEvento(lat, lon, tipo, popup) {
       const layerDestino = tipo === "ativo" ? layerEventosAtivos : layerEventosObservacao;
@@ -4400,6 +4540,7 @@ out body;`;
           });
 
           configurarCamadaEventoClicavel(ponto, popup).addTo(layerGroup);
+          registrarEventoClicavelNoMapa(tipo, "point", [[lat, lon]], popup);
           marcadorDestaqueEvento(lat, lon, tipo, popup);
           registrarEventoNoMapa([lat, lon], tipo);
           registrarEventoSnapshot(tipo, "point", [[lat, lon]], tipoLabel);
@@ -4435,6 +4576,7 @@ out body;`;
 
         configurarCamadaEventoClicavel(linhaVisual, popup).addTo(layerGroup);
         configurarCamadaEventoClicavel(linhaClique, popup).addTo(layerGroup);
+        registrarEventoClicavelNoMapa(tipo, "line", coords, popup);
 
         registrarEventoNoMapa(coords, tipo);
         registrarEventoSnapshot(tipo, "line", coords, tipoLabel);
@@ -4476,6 +4618,7 @@ out body;`;
 
         configurarCamadaEventoClicavel(polygon, popup).addTo(layerGroup);
         configurarCamadaEventoClicavel(polygonClique, popup).addTo(layerGroup);
+        registrarEventoClicavelNoMapa(tipo, "polygon", coords, popup);
         registrarEventoNoMapa(coords, tipo);
         registrarEventoSnapshot(tipo, "polygon", coords, tipoLabel);
         const centro = centroDosPontos(coords) || coords[Math.floor(coords.length / 2)];
@@ -4550,6 +4693,7 @@ out body;`;
         // Só apaga a camada antiga depois que o KML novo foi baixado e interpretado.
         // Assim, uma demora/falha no INPE não faz os eventos sumirem do mapa durante a atualização.
         config.layer.clearLayers();
+        limparEventosClicaveisTipo(tipo);
         eventosOfflineAtuais[tipo] = [];
         atualizarContadorEvento(tipo, 0);
 
@@ -5010,7 +5154,8 @@ out body;`;
       const horas = Number(els.periodo.value || 24);
 
       if (atualizacaoEmAndamento) {
-        if (!silencioso) setStatus("Atualização já em andamento. Aguarde terminar para atualizar novamente.", "warn");
+        atualizacaoPendenteAposAtual = true;
+        if (!silencioso) setStatus("Atualização em andamento. O filtro escolhido será aplicado assim que terminar.", "warn");
         return;
       }
 
@@ -5019,7 +5164,7 @@ out body;`;
 
       if (navigator.onLine === false) {
         if (!silencioso) {
-          carregarMapaOfflineSalvo();
+          carregarMapaOfflineSalvo({ preservarFiltrosAtuais: true });
           mostrarLoading(false);
         }
         atualizacaoEmAndamento = false;
@@ -5106,7 +5251,7 @@ out body;`;
           console.warn("Atualização automática falhou; mantendo dados atuais:", err);
         } else {
           console.warn("Falha na atualização online, tentando estado salvo:", err);
-          const abriu = carregarMapaOfflineSalvo();
+          const abriu = carregarMapaOfflineSalvo({ preservarFiltrosAtuais: true });
           if (!abriu) {
             setStatus("Falha ao atualizar pela internet e não há estado salvo para abrir offline.", "warn");
           }
@@ -5114,7 +5259,29 @@ out body;`;
       } finally {
         if (!silencioso) mostrarLoading(false);
         atualizacaoEmAndamento = false;
+
+        if (atualizacaoPendenteAposAtual) {
+          atualizacaoPendenteAposAtual = false;
+          setTimeout(() => {
+            atualizar({ origem: "filtro-pendente", silencioso: false }).catch((err) => {
+              console.warn("Falha ao aplicar filtro pendente:", err);
+            });
+          }, 0);
+        }
       }
+    }
+
+
+    function atualizarPorMudancaDeFiltro() {
+      registrarInteracaoUsuario();
+      atualizarDestaqueMunicipioSelecionado();
+      fecharPainelFocoOpcoes();
+      fecharPainelEventoOpcoes();
+      eventosCache.ativos = null;
+      eventosCache.observacao = null;
+      atualizar({ origem: "filtro", silencioso: false }).catch((err) => {
+        console.warn("Falha ao atualizar filtro:", err);
+      });
     }
 
     function exportarDadosTexto() {
@@ -5371,8 +5538,8 @@ if (document.getElementById("btnLimparRota")) {
     if (document.getElementById("btnFecharPainelFoco")) {
       document.getElementById("btnFecharPainelFoco").addEventListener("click", fecharPainelFocoOpcoes);
     }
-els.periodo.addEventListener("change", atualizar);
-    if (els.municipio) els.municipio.addEventListener("change", atualizar);
+els.periodo.addEventListener("change", atualizarPorMudancaDeFiltro);
+    if (els.municipio) els.municipio.addEventListener("change", atualizarPorMudancaDeFiltro);
     if (els.busca) els.busca.addEventListener("input", renderizarLista);
 
     if (window.location.protocol === "file:") {
@@ -5391,7 +5558,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947142" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947144" });
 
     atualizar();
 setInterval(() => {
