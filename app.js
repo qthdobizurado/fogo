@@ -63,6 +63,10 @@ const sateliteImagem = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/
     map.getPane("paneEstradas").style.zIndex = 610;
     map.getPane("paneEstradas").style.pointerEvents = "auto";
 
+    map.createPane("paneCercoManual");
+    map.getPane("paneCercoManual").style.zIndex = 745;
+    map.getPane("paneCercoManual").style.pointerEvents = "auto";
+
     map.createPane("paneRota");
     map.getPane("paneRota").style.zIndex = 660;
     map.getPane("paneRota").style.pointerEvents = "auto";
@@ -549,11 +553,10 @@ let goiasGeometry = null;
       const btn = document.getElementById("btnAreaAcaoAlvo");
       if (!btn) return;
 
-      const temCerco = !!(
-        layerAreaAcao &&
-        layerAreaAcao.getLayers &&
-        layerAreaAcao.getLayers().length > 0
-      );
+      const totalAreaAcao = layerAreaAcao && layerAreaAcao.getLayers ? layerAreaAcao.getLayers().length : 0;
+      const totalEstradas = layerEstradasDestaque && layerEstradasDestaque.getLayers ? layerEstradasDestaque.getLayers().length : 0;
+      const totalTemporarioManual = layerAceiroManualTemp && layerAceiroManualTemp.getLayers ? layerAceiroManualTemp.getLayers().length : 0;
+      const temCerco = !!(totalAreaAcao || totalEstradas || totalTemporarioManual || aceiroManualAtivo);
 
       btn.textContent = "Limpar cercos";
       btn.disabled = !temCerco;
@@ -893,8 +896,6 @@ let goiasGeometry = null;
       if (layerAlvoOperacional && layerAlvoOperacional.clearLayers) {
         layerAlvoOperacional.clearLayers();
       }
-
-      limparAreaAcao();
 
       if (rotaAcessoAtual) {
         limparRotaAcesso();
@@ -1454,6 +1455,15 @@ let goiasGeometry = null;
       const itens = [];
 
       estradasCamadasPorAlvo.forEach((grupo, id) => {
+        if (grupo && grupo.__tipoCerco === "manual" && Array.isArray(grupo.__cercoManualCoords)) {
+          const coords = grupo.__cercoManualCoords
+            .map(p => [Number(p[0]), Number(p[1])])
+            .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+          if (coords.length >= 2) itens.push({ id, tipo: "manual", coords });
+          return;
+        }
+
+        const jaSalvouGrupo = new Set();
         grupo.getLayers().forEach((layer) => {
           if (layer && typeof layer.getLatLngs === "function") {
             const latLngs = layer.getLatLngs();
@@ -1462,7 +1472,11 @@ let goiasGeometry = null;
               .filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
               .map(p => [Number(p.lat), Number(p.lng)]);
 
-            if (coords.length >= 2) itens.push({ id, coords });
+            const chave = coords.map(p => p.map(n => Number(n).toFixed(6)).join(",")).join(";");
+            if (coords.length >= 2 && !jaSalvouGrupo.has(chave)) {
+              jaSalvouGrupo.add(chave);
+              itens.push({ id, coords });
+            }
           }
         });
       });
@@ -1481,18 +1495,7 @@ let goiasGeometry = null;
 
         if (coords.length < 2) return;
 
-        const grupo = L.layerGroup();
-        L.polyline(coords, {
-          color: "#fffb8a",
-          weight: 9,
-          opacity: 1,
-          dashArray: "8 7",
-          pane: "paneEstradas",
-          interactive: false
-        }).addTo(grupo);
-
-        grupo.addTo(layerEstradasDestaque);
-        estradasCamadasPorAlvo.set(item.id || ("offline_aceiro_" + idx), grupo);
+        criarGrupoCercoManual(item.id || ("offline_aceiro_" + idx), coords, coords.length);
       });
 
       atualizarStatusAceiro("Aceiros restaurados do retrato offline.");
@@ -1542,7 +1545,7 @@ let goiasGeometry = null;
       if (!("serviceWorker" in navigator)) return false;
 
       try {
-        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947144", {
+        const reg = await navigator.serviceWorker.register("./sw.js?v=1782947145", {
           updateViaCache: "none"
         });
 
@@ -2229,6 +2232,83 @@ out body;`;
       }
     }
 
+
+    function normalizarCoordsCercoManual(coordsEntrada = []) {
+      return (coordsEntrada || [])
+        .map(p => {
+          if (Array.isArray(p)) return [Number(p[0]), Number(p[1])];
+          if (p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))) return [Number(p.lat), Number(p.lng)];
+          return null;
+        })
+        .filter(p => p && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    }
+
+    function criarGrupoCercoManual(idManual, coordsEntrada, totalPontos = null) {
+      const coords = normalizarCoordsCercoManual(coordsEntrada);
+      if (coords.length < 2) return null;
+
+      const id = String(idManual || ("manual_" + (++aceiroManualSequencia)));
+
+      if (estradasCamadasPorAlvo.has(id)) {
+        try { layerEstradasDestaque.removeLayer(estradasCamadasPorAlvo.get(id)); } catch (_) {}
+        estradasCamadasPorAlvo.delete(id);
+      }
+
+      const grupo = L.layerGroup();
+      grupo.__tipoCerco = "manual";
+      grupo.__cercoManualId = id;
+      grupo.__cercoManualCoords = coords.map(p => [p[0], p[1]]);
+      grupo.__cercoManualTotalPontos = Number(totalPontos || coords.length);
+
+      const abrirOpcoesCercoManual = (ev = null) => {
+        try {
+          if (ev) ev.__cercoManualAberto = true;
+          if (ev && ev.originalEvent) {
+            ev.originalEvent.preventDefault && ev.originalEvent.preventDefault();
+            ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+          }
+        } catch (_) {}
+
+        abrirPainelCercoManualOpcoes(id, grupo.__cercoManualTotalPontos || coords.length);
+        setStatus("Cerco manual selecionado. Use Remover cerco manual para apagar.", "ok");
+      };
+
+      const opcoesBase = {
+        pane: "paneCercoManual",
+        interactive: true,
+        bubblingMouseEvents: false,
+        lineCap: "round",
+        lineJoin: "round"
+      };
+
+      const linhaVisual = L.polyline(coords, Object.assign({}, opcoesBase, {
+        color: "#fffb8a",
+        weight: 9,
+        opacity: 1,
+        dashArray: "8 7"
+      }));
+
+      const linhaClique = L.polyline(coords, Object.assign({}, opcoesBase, {
+        color: "#fffb8a",
+        weight: 38,
+        opacity: 0.001
+      }));
+
+      [linhaVisual, linhaClique].forEach((linha) => {
+        linha.__tipoCerco = "manual";
+        linha.__cercoManualId = id;
+        linha.on("click", abrirOpcoesCercoManual);
+        linha.on("mousedown", abrirOpcoesCercoManual);
+        linha.on("touchstart", abrirOpcoesCercoManual);
+      });
+
+      linhaVisual.addTo(grupo);
+      linhaClique.addTo(grupo);
+      grupo.addTo(layerEstradasDestaque);
+      estradasCamadasPorAlvo.set(id, grupo);
+      return grupo;
+    }
+
     function iniciarAceiroManual(alvoId) {
       const alvo = alvosEstradas.get(alvoId);
       if (!alvo) {
@@ -2303,49 +2383,8 @@ out body;`;
 
       const alvoId = aceiroManualAlvoId || ("manual_" + (++aceiroManualSequencia));
       const idManual = alvoId + "_manual_" + (++aceiroManualSequencia);
-      const grupo = L.layerGroup();
       const totalPontos = aceiroManualPontos.length;
-
-      const abrirOpcoesCercoManual = (ev = null) => {
-        try {
-          if (ev && ev.originalEvent) {
-            ev.originalEvent.preventDefault();
-            ev.originalEvent.stopPropagation();
-          }
-        } catch (_) {}
-
-        abrirPainelCercoManualOpcoes(idManual, totalPontos);
-        setStatus("Cerco manual selecionado. Use Remover cerco manual para apagar.", "ok");
-      };
-
-      const linhaVisual = L.polyline(aceiroManualPontos, {
-        color: "#fffb8a",
-        weight: 9,
-        opacity: 1,
-        dashArray: "8 7",
-        pane: "paneEstradas",
-        interactive: true,
-        bubblingMouseEvents: false
-      });
-
-      const linhaClique = L.polyline(aceiroManualPontos, {
-        color: "#ffffff",
-        weight: 34,
-        opacity: 0.01,
-        pane: "paneEstradas",
-        interactive: true,
-        bubblingMouseEvents: false
-      });
-
-      linhaVisual.on("click", abrirOpcoesCercoManual);
-      linhaClique.on("click", abrirOpcoesCercoManual);
-      linhaVisual.on("touchstart", abrirOpcoesCercoManual);
-      linhaClique.on("touchstart", abrirOpcoesCercoManual);
-
-      linhaVisual.addTo(grupo);
-      linhaClique.addTo(grupo);
-      grupo.addTo(layerEstradasDestaque);
-      estradasCamadasPorAlvo.set(idManual, grupo);
+      criarGrupoCercoManual(idManual, aceiroManualPontos, totalPontos);
 
       aceiroManualAtivo = false;
       aceiroManualAlvoId = null;
@@ -2382,6 +2421,67 @@ out body;`;
       atualizarBotaoCerco();
       setStatus("Cerco manual removido.", "ok");
       agendarSalvamentoOfflineAutomatico();
+    }
+
+
+    function coordsCercoManualDoGrupo(grupo) {
+      if (!grupo) return [];
+      if (Array.isArray(grupo.__cercoManualCoords)) {
+        return normalizarCoordsCercoManual(grupo.__cercoManualCoords);
+      }
+
+      const layers = grupo.getLayers ? grupo.getLayers() : [];
+      for (const layer of layers) {
+        if (!layer || typeof layer.getLatLngs !== "function") continue;
+        const latLngs = layer.getLatLngs();
+        const planos = Array.isArray(latLngs[0]) ? latLngs.flat(Infinity) : latLngs;
+        const coords = planos
+          .filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
+          .map(p => [Number(p.lat), Number(p.lng)]);
+        if (coords.length >= 2) return coords;
+      }
+
+      return [];
+    }
+
+    function abrirCercoManualPorCliqueNoMapa(ev) {
+      if (aceiroManualAtivo || modoMarcacaoOperacional) return false;
+      if (!ev || !ev.latlng || !estradasCamadasPorAlvo || !estradasCamadasPorAlvo.size) return false;
+
+      const lat = Number(ev.latlng.lat);
+      const lon = Number(ev.latlng.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+
+      const tolerancia = Math.max(0.06, toleranciaCliqueEventoKm(lat, 28));
+      let melhor = null;
+
+      estradasCamadasPorAlvo.forEach((grupo, id) => {
+        const idTexto = String(id || "");
+        const pareceManual = grupo && (grupo.__tipoCerco === "manual" || idTexto.includes("_manual_") || idTexto.startsWith("offline_aceiro_"));
+        if (!pareceManual) return;
+
+        const coords = coordsCercoManualDoGrupo(grupo);
+        if (coords.length < 2) return;
+
+        const d = distanciaPontoLinhaKm(lat, lon, coords);
+        if (!melhor || d < melhor.distanciaKm) {
+          melhor = { id: idTexto, grupo, coords, distanciaKm: d };
+        }
+      });
+
+      if (!melhor || melhor.distanciaKm > tolerancia) return false;
+
+      try {
+        ev.__cercoManualAberto = true;
+        if (ev.originalEvent) {
+          ev.originalEvent.preventDefault && ev.originalEvent.preventDefault();
+          ev.originalEvent.stopPropagation && ev.originalEvent.stopPropagation();
+        }
+      } catch (_) {}
+
+      abrirPainelCercoManualOpcoes(melhor.id, (melhor.grupo && melhor.grupo.__cercoManualTotalPontos) || melhor.coords.length);
+      setStatus("Cerco manual selecionado. Use Remover cerco manual para apagar.", "ok");
+      return true;
     }
 
     function totalAceirosAtivos() {
@@ -2532,7 +2632,9 @@ out body;`;
       aceiroManualPontos = [];
       limparTemporarioAceiroManual();
       mostrarControlesAceiroManual(false);
+      fecharPainelCercoManualOpcoes();
       atualizarStatusAceiro();
+      atualizarBotaoCerco();
     }
 
     function escapeJsTexto(texto) {
@@ -2874,6 +2976,7 @@ out body;`;
     }
 
     function abrirEventoPorCliqueNoMapa(ev) {
+      if (ev && ev.__cercoManualAberto) return;
       if (aceiroManualAtivo || modoMarcacaoOperacional) return;
       if (!ev || !ev.latlng || !eventosClicaveisNoMapa.length) return;
 
@@ -2958,6 +3061,7 @@ out body;`;
       return layer;
     }
 
+    map.on("click", abrirCercoManualPorCliqueNoMapa);
     map.on("click", abrirEventoPorCliqueNoMapa);
 
     function marcadorDestaqueEvento(lat, lon, tipo, popup) {
@@ -5505,6 +5609,7 @@ if (document.getElementById("btnLimparRota")) {
     map.on("movestart zoomstart dragstart popupopen click", registrarInteracaoUsuario);
 
     map.on("click", (ev) => {
+      if (ev && ev.__cercoManualAberto) return;
       registrarLogPopupFoco("clique geral no mapa", {
         latlng: ev && ev.latlng ? { lat: ev.latlng.lat, lon: ev.latlng.lng } : null
       });
@@ -5558,7 +5663,7 @@ if (document.getElementById("btnLimparBases")) {
     registrarServiceWorkerOffline();
     tentarCarregarOfflineSeSemInternet();
     instalarCapturaCliqueFoco();
-    registrarLogPopupFoco("app iniciado", { build: "1782947144" });
+    registrarLogPopupFoco("app iniciado", { build: "1782947145" });
 
     atualizar();
 setInterval(() => {
