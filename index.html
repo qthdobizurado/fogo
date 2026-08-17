@@ -76,14 +76,17 @@
     }
 
     .btn {
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
       width: 100%;
       padding: 15px 18px;
       border-radius: 14px;
       text-decoration: none;
       font-weight: 700;
       font-size: 1rem;
-      transition: transform .15s ease, filter .15s ease;
+      transition: transform .15s ease, filter .15s ease, opacity .15s ease;
     }
 
     .btn:hover {
@@ -91,11 +94,15 @@
       filter: brightness(1.06);
     }
 
+    .btn svg {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+    }
+
     .btn-android {
       color: #fff;
       background: linear-gradient(135deg, var(--orange), var(--orange-dark));
-      cursor: not-allowed;
-      opacity: .72;
     }
 
     .btn-windows {
@@ -103,10 +110,16 @@
       background: linear-gradient(135deg, #2563eb, #1d4ed8);
     }
 
-    .note {
-      margin-top: 18px;
-      font-size: .86rem;
-      color: #94a3b8;
+    .btn-playstore {
+      color: #fff;
+      background: linear-gradient(135deg, #334155, #1e293b);
+      cursor: not-allowed;
+      opacity: .58;
+    }
+
+    .btn-playstore:hover {
+      transform: none;
+      filter: none;
     }
 
     @media (max-width: 520px) {
@@ -135,23 +148,34 @@
     <h1>Fernandes Maps</h1>
 
     <p class="subtitle">
-      Aplicativo para consulta de mapas, focos, vento e informações de apoio à operação em campo.
+      Aplicativo para consulta de focos de incêndio e informações de apoio ao combate a incêndios em vegetação.
     </p>
 
     <div class="buttons">
-      <!-- Configure posteriormente o link do Android substituindo # pelo arquivo ou URL desejado. -->
-      <a class="btn btn-android" href="#" onclick="return false;" aria-disabled="true">
+      <a class="btn btn-android" href="FernandesMaps.apk" download>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M7.2 8.2h9.6v8.3c0 .8-.6 1.5-1.5 1.5h-.8v2.1a1.1 1.1 0 0 1-2.2 0V18h-1v2.1a1.1 1.1 0 0 1-2.2 0V18h-.8c-.8 0-1.5-.7-1.5-1.5V8.2Zm-2.3.4c.6 0 1.1.5 1.1 1.1v5.8a1.1 1.1 0 0 1-2.2 0V9.7c0-.6.5-1.1 1.1-1.1Zm14.2 0c.6 0 1.1.5 1.1 1.1v5.8a1.1 1.1 0 0 1-2.2 0V9.7c0-.6.5-1.1 1.1-1.1ZM8.1 7.2A4.7 4.7 0 0 1 9 4.5L7.7 2.7a.5.5 0 0 1 .8-.6L9.8 4c.7-.4 1.4-.6 2.2-.6s1.5.2 2.2.6l1.3-1.9a.5.5 0 0 1 .8.6L15 4.5c.6.8.9 1.7.9 2.7H8.1Zm2.1-1.4a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2Zm3.6 0a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2Z"/>
+        </svg>
         Download para Android
       </a>
 
+      <a class="btn btn-playstore" href="#" onclick="return false;" aria-disabled="true" tabindex="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#34A853" d="M3.7 2.8c-.4.4-.7 1-.7 1.8v14.8c0 .8.3 1.4.7 1.8l.1.1L12.1 13v-2L3.8 2.7l-.1.1Z"/>
+          <path fill="#4285F4" d="m14.9 15.8-2.8-2.8v-2l2.8-2.8.1.1 3.4 1.9c1 .6 1 1.5 0 2.1L15 14.2l-.1.1v1.5Z"/>
+          <path fill="#FBBC04" d="m15 14.2-2.9-2.2-8.4 9.2c.6.6 1.5.7 2.5.1l8.8-5.1v-2Z"/>
+          <path fill="#EA4335" d="m15 8.2-8.8-5.1c-1-.6-1.9-.5-2.5.1l8.4 9.2L15 10V8.2Z"/>
+        </svg>
+        Download pelo Google Play Store (em breve)
+      </a>
+
       <a class="btn btn-windows" href="FernandesMaps.exe" download>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M3 4.2 10.5 3v8.4H3V4.2Zm8.5-1.4L21 1.4v10h-9.5V2.8ZM3 12.6h7.5V21L3 19.8v-7.2Zm8.5 0H21v10l-9.5-1.4v-8.6Z"/>
+        </svg>
         Download para Windows
       </a>
     </div>
-
-    <p class="note">
-      A versão Android será disponibilizada posteriormente.
-    </p>
   </main>
 </body>
 </html>
